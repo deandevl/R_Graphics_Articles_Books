@@ -1,0 +1,282 @@
+---
+title: "Chapter 6 Work With Models"
+output: 
+  html_notebook:
+    toc: yes
+---
+
+```{r}
+library(dplyr)
+library(tibble)
+library(ggplot2)
+library(scales)
+library(gapminder)
+library(broom)
+library(tidyr)
+library(purrr)
+library(margins)
+library(socviz)
+```
+Several smoothing functions:
+```{r}
+model_colors <- RColorBrewer::brewer.pal(3,"Set1")
+ggplot(gapminder, aes(x = log(gdpPercap), y = lifeExp)) +
+  geom_point(alpha = 0.2) +
+  geom_smooth(method = "lm", aes(color = "OLS", fill = "OLS")) +
+  geom_smooth(method = "lm", formula = y ~ splines::bs(x, df = 3),
+              aes(color = "Cubic Spline", fill = "Cubic Spline")) +
+  geom_smooth(method = "loess", aes(color = "LOESS", fill = "LOESS")) +
+  scale_color_manual(name="Models",values = model_colors) +
+  scale_fill_manual(name="Models",values = model_colors) +
+  theme(legend.position = "top")
+```
+## 6.1 Show several fits at once with a legend
+```{r}
+#using named vector for colors
+model_colors_named <- c("OLS" = "orange",
+                        "Cubic Spline" = model_colors[2],
+                        "LOESS" = model_colors[3])
+View(model_colors_named)
+ggplot(gapminder, aes(x = log(gdpPercap), y = lifeExp)) +
+  geom_point(alpha = 0.2) +
+  geom_smooth(method = "lm", aes(color = "OLS", fill = "OLS")) +
+  geom_smooth(method = "lm", formula = y ~ splines::bs(x, df = 3),
+              aes(color = "Cubic Spline", fill = "Cubic Spline")) +
+  geom_smooth(method = "loess", aes(color = "LOESS", fill = "LOESS")) +
+  scale_color_manual(name="Fittings",values = model_colors_named) +
+  scale_fill_manual(name="Fittings",values = model_colors_named) +
+  theme(legend.position = "top")
+```
+## 6.2 Look inside model objects
+We can create a linear model object, a standard OLS regression, using the gapminder data.  We use the lm() function to run the model and store it in an object called 'out_lm':
+```{r}
+out_lm <- lm(data = gapminder, formula = lifeExp ~ gdpPercap + pop + continent)
+summary(out_lm)
+```
+Look at the structure of the model:
+```{r}
+str(out_lm)
+```
+
+## 6.3 Get model-based graphics right
+## 6.4 Generate predictions to graph
+Using the functions 'expand.grid()' and 'predict()'
+```{r}
+?predict
+```
+
+Using the function 'expand.grid()' which given a list of variables with their min/max will produce a grid of values of every combination of those variables (looking at the gapminder dataset):
+```{r}
+min_gdp <- min(gapminder$gdpPercap)
+max_gdp <- max(gapminder$gdpPercap)
+med_pop <- median(gapminder$pop)
+
+pred_df <- expand.grid(
+    gdpPercap = (seq(from = min_gdp, to = max_gdp, length.out = 100)),
+    pop = med_pop,
+    continent = c("Africa", "Americas", "Asia", "Europe", "Oceania")
+  )
+glimpse(pred_df)
+```
+Now we can use the function 'predict()' and the above model ('out_lm') to calculate fitted values for every row of pred_df. Note setting 'interval = "predict"' calculates the 95 percent prediction intervals in addition to the point estimate.
+```{r}
+out_lm <- lm(data = gapminder, formula = lifeExp ~ gdpPercap + pop + continent)
+pred_out_lm <- predict(object = out_lm, newdata = pred_df, interval = "predict")
+head(pred_out_lm)
+```
+We can join the columns of both 'pred_out_lm' and pred_df row for row:
+```{r}
+pred_df <- cbind(pred_df, pred_out_lm)
+head(pred_df)
+```
+Plot the 'lifeExp' from gapminder with the 'fit' values (using just continent = "Europe" and "Africa").  Plotting in stages.  Start with plotting the linear fit lines:
+```{r,fig.width=12, fig.height=8}
+plot_lm <- pred_df %>% 
+  filter(continent %in% c("Europe", "Africa")) %>% 
+  ggplot(aes(x = gdpPercap, y = fit, ymin = lwr, ymax = upr, color = continent, fill = continent, group = continent)) +
+  geom_line() +
+  scale_x_log10(labels = scales::dollar)
+plot_lm  
+```
+Add the 95% confidence interval ribbons:
+```{r,fig.width=12, fig.height=8}
+plot_lm <- plot_lm +
+  geom_ribbon(alpha = 0.2, color = FALSE)
+plot_lm
+```
+Plot the original gapminder 'gdpPercap' vs 'lifeExp' as points over the fit:
+```{r,fig.width=12, fig.height=8}
+gapminder_data <- gapminder %>% 
+  filter(continent %in% c("Europe", "Africa"))
+plot_lm <- plot_lm +
+  geom_point(data = gapminder_data, inherit.aes = FALSE, aes(x = gdpPercap, y = lifeExp, color = continent), alpha = 0.5)
+plot_lm  
+```
+## 6.5 Tidy model objects with Broom
+The package 'Broom' helps us to get from the model results that R generates to numbers that we can plot.  It will take model objects and turn pieces of them into data frames that you can use easily with ggplot.  The generics::tidy() function turns an object into a tidy tibble:
+```{r}
+round_df <- function(x,digits = 2){
+  data.frame(lapply(x,
+    function(col_v) {
+      if(is.numeric(col_v)) round(col_v,digits)
+      else col_v
+    }
+  ))
+}
+out_lm <- lm(data = gapminder, formula = lifeExp ~ gdpPercap + pop + continent)
+out_lm_tib <- generics::tidy(out_lm)
+(out_lm_tib <- round_df(out_lm_tib))
+```
+Plot the OLS estimates:
+```{r}
+out_lm_tib %>% 
+  ggplot(aes(term, estimate)) +
+  geom_point() +
+  coord_flip()
+```
+Add confidence intervals for the estimates:
+```{r}
+out_lm_tib <- generics::tidy(out_lm, conf.int = TRUE)
+(out_lm_tib <- round_df(out_lm_tib))
+```
+Drop the 'intercept' row from 'out_lm_tidy' and add a nice labels column:
+```{r}
+out_lm_tib <- out_lm_tib[-c(1),]
+out_lm_tib$nicelabs <- c("gdpPercap","pop","Americas","Asia","Europe","Oceania")
+out_lm_tib
+```
+Plot the 'estimate' vs 'term' with the confidence limits:
+```{r}
+ggplot(out_lm_tib, aes(x = reorder(nicelabs, estimate), y = estimate, ymin = conf.low, ymax = conf.high)) +
+  geom_pointrange() +
+  coord_flip() +
+  labs(x = "", y = "OLS Estimate")
+```
+Using broom::augment() function to get additional model data. Includes all the original observations that were used to create the model along with columns for fit values and residuals. It includes only original columns used in the model:
+```{r}
+out_lm_aug_tib <- broom::augment(out_lm)
+glimpse(round_df(out_lm_aug_tib))
+```
+To include all the original columns, set the 'data' argument of 'augment:
+```{r}
+out_lm_aug_tib <- broom::augment(out_lm, data = gapminder)
+glimpse(round_df(out_lm_aug_tib))
+```
+Using the additional model data, plot fit vs residual:
+```{r}
+ggplot(out_lm_aug_tib, aes(.fitted, .resid)) +
+  geom_point()
+```
+Using broom::glance() function to get model-level statistics:
+```{r}
+round_df(glance(out_lm))
+```
+## 6.6 Grouped analysis and list columns
+From gapminder, group by a specific continent and year and fit a linear model to the data:
+```{r}
+eu77_df <- gapminder %>% 
+  filter(continent == "Europe", year == 1977)
+lm_eu77 <- lm(data = eu77_df, formula = lifeExp ~ log(gdpPercap))
+summary(lm_eu77)
+```
+From gapminder, nest the group_by for continent and year:
+```{r}
+?tidyr::nest
+gapminder_nest <- gapminder %>% 
+  group_by(continent, year) %>% 
+  tidyr::nest()
+gapminder_nest
+```
+Find 'eu77' in gapminder_nest:
+```{r}
+gapminder_nest %>% 
+  filter(continent == "Europe", year == 1977) %>% 
+  tidyr::unnest()
+```
+Create a model for each continent/year combination in gapminder:
+```{r}
+# define a function that takes a data frame and outputs a model:
+fit_ols <- function(df){
+  lm(lifeExp ~ log(gdpPercap), data = df)
+}
+
+year_continent_models <- gapminder %>% 
+  group_by(continent, year) %>% 
+  nest() %>% 
+  mutate(model = purrr::map(data, fit_ols))
+year_continent_models
+```
+Tidy up the model column; remove the intercept term and Oceania continent:
+```{r}
+"%nin%" <- function(v1,v2) {
+  !v1 %in% v2
+}
+
+?tidyr::unnest
+year_continent_models <- gapminder %>% 
+  group_by(continent, year) %>% 
+  nest() %>% 
+  mutate(
+    model = purrr::map(data, fit_ols),
+    tided = purrr::map(model, generics::tidy)) %>% 
+  tidyr::unnest(tided) %>% 
+  filter(term %nin% "(Intercept)", continent %nin% "Oceania")
+year_continent_models
+```
+Plot the estimates for each year:
+```{r}
+ggplot(year_continent_models, aes(year, estimate, ymin = estimate - 2*std.error, ymax = estimate + 2*std.error,        group = continent, color = continent)) +
+  geom_pointrange(position = position_dodge(width = 1)) +
+  scale_x_continuous(breaks = unique(gapminder$year)) +
+  theme(legend.position = "top") +
+  labs(x = "Year", y = "Estimate", color = "Continent")
+  
+```
+
+## 6.7 Plot marginal effects
+Using margins package with the gss_sm dataset.
+```{r}
+glimpse(socviz::gss_sm)
+```
+Relevel 'polviews' where "Moderate" is the reference category. Create a stats::glm model:
+```{r}
+gss_sm$polviews_m <- relevel(gss_sm$polviews, ref = "Moderate")
+model_glm <- stats::glm(obama ~ polviews_m + sex*race, family = "binomial", data = gss_sm)
+summary(model_glm)
+```
+Calculate the marginal effects of each independent variable:
+```{r}
+model_gm_marginals <- margins(model_glm)
+summary(model_gm_marginals)
+```
+Plot the maginal effects:
+```{r}
+marginal_summary_tib <- as_tibble(summary(model_gm_marginals))
+prefixes <- c("polviews_m", "sex")
+marginal_summary_tib$factor <- prefix_strip(marginal_summary_tib$factor, prefixes)
+marginal_summary_tib$factor <- prefix_replace(marginal_summary_tib$factor, "race", "Race:")
+marginal_summary_tib %>% select(factor, AME, lower, upper)
+```
+Plot the table:
+```{r}
+ggplot(marginal_summary_tib, aes(x = reorder(factor, AME), y = AME, ymin = lower, ymax = upper)) +
+  geom_hline(yintercept = 0, color = "gray80") +
+  geom_pointrange() +
+  coord_flip() +
+  labs(x = NULL, y = "Average Marginal Effect")
+```
+Plot conditional effect of 'sex':
+```{r}
+plot_cp <- margins::cplot(model_glm, x = "sex", draw = FALSE)
+```
+```{r}
+ggplot(plot_cp, aes(x = reorder(xvals, yvals), y = yvals, ymin = lower, ymax = upper)) +
+  geom_pointrange() +
+  coord_flip() +
+  labs(x = NULL, y = "Sex Conditional Effect")
+```
+## 6.8 Plots from complex surveys
+## 6.9 Where to go next
+Look at the coefplot package.  It provides a quick way to produce good quality model object plots of point estimates and confidence intervals.
+
+

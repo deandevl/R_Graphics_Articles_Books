@@ -1,0 +1,55 @@
+---
+title: "Chapter 2 Get Started"
+output: 
+  html_notebook:
+    toc: yes
+---
+
+```{r}
+library(dplyr)
+library(socviz)
+library(gapminder)
+library(tibble)
+library(readr)
+library(ggplot2)
+```
+
+
+## 2.3 Things to know about R
+You do things in R by creating and manipulating named objects.
+Every object has a class.
+Knowing an object's class tells you a lot about what you can do with it:
+```{r}
+my_numbers <- c(1,2,3,4)
+class(my_numbers)
+
+class(summary)
+```
+The data set 'Titanic' from the socviz package:
+```{r}
+glimpse(socviz::titanic) 
+class(socviz::titanic)
+```
+Use 'tibble' as an alternative data frame -- they give more information about the data frame:
+```{r}
+titanic_tb <- as_tibble(titanic) # as.tibble is deprecated
+titanic_tb
+```
+
+To see inside an object, ask for its 'structure':
+```{r}
+str(socviz::titanic)
+```
+## 2.5 Get data into R
+Use 'read_csv()' to read in comma-separated data.
+'read_csv()' will not classify variables as factors unless you tell it to.
+```{r}
+?read_csv
+```
+## 2.6 Make your first figure
+```{r}
+glimpse(gapminder)
+ggplot(gapminder, aes(gdpPercap, lifeExp)) +
+  geom_point()
+```
+

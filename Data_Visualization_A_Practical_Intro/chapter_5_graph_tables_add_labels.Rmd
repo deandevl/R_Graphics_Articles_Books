@@ -1,0 +1,257 @@
+---
+title: "Chapter 5 Graph Tables, Add Labels, Make Notes"
+output: 
+  html_notebook:
+    toc: yes
+---
+
+
+
+```{r}
+library(dplyr)
+library(tibble)
+library(ggplot2)
+library(scales)
+library(socviz)
+library(forcats)
+library(ggrepel)
+```
+
+Using the package 'dplyr' to get data into shape before using ggplot.
+Expand the number of geom_'s and how to choose among them.
+Learn more about scale, guide, and theme functions
+
+Doing the same thing:
+  1. Define a set of tidy data.
+  2. Mapping of variables to aesthetic elements.
+  3. Select a particular type of graph (geom_)
+
+## 5.1 Use pipes to summarize data
+Using dplyr package and socviz::gss_sm dataset build a summary table with percentages of religious preferences grouped within region.
+
+The main functions to use from dplyr package: group_by(), filter(), select(), mutate(), summarize().
+```{r}
+glimpse(socviz::gss_sm)
+```
+Note: there are some 'NA' or missing values in the 'religion' factor:
+```{r}
+sum(is.na(gss_sm$religion))
+```
+So using forcats::fct_explicit_na() function, give missing values an explicit factor level, ensuring that they appear in summaries and on plots.
+```{r}
+gss_sm_missing <- gss_sm %>% 
+  mutate(
+    religion = forcats::fct_explicit_na(gss_sm$religion, na_level = "(Missing)")
+  )
+# check for NA's under religion again
+sum(is.na(gss_sm_missing$religion))
+levels(gss_sm_missing$religion)
+```
+
+
+```{r}
+(rel_by_region <- gss_sm_missing %>% 
+  group_by(bigregion, religion) %>% 
+  summarise(N = n()) %>% 
+  mutate(
+    frac = N/sum(N),
+    pct = round(frac * 100, 0)
+  )
+)
+```
+Note that 'summarise()' retains the 'bigregion' and 'religion' variables; adds a new variable 'N' and drops all the other variables.  'mutate()' adds two new variables -- 'frac' and 'pct'.
+
+Check that the percentages add up to 100% for each 'bigregion':
+```{r}
+(rel_by_region %>% 
+  group_by(bigregion) %>% 
+  summarize(
+    total_pct = sum(pct)
+  )
+)
+```
+Since we are working directly with percentages, we can use 'geom_col()' instead of 'geom_bar()':
+```{r}
+ggplot(rel_by_region, aes(bigregion, pct, fill = religion)) +
+  geom_col(position = "dodge2") +
+  labs(
+    x = "Regioin",
+    y = "Percent",
+    fill = "Religion"
+  ) +
+  theme(legend.position = "top")
+```
+Note: 'dodge2' adds padding = 0.1, whereas 'dodge' does not add padding among the bars.
+Can improve chart -- above chart has too many bars -- hard to compare bars.  Use faceting to remove the 'fill = religion' legend and make the chart easier to read.  With facetiing for 'bigregion', put 'religion' on the x axis and 'pct' on the y axis and then flip the axis':
+```{r, fig.width=9}
+ggplot(rel_by_region, aes(religion, pct, fill = religion)) +
+  geom_col(position = "dodge2") +
+  labs(x = NULL, y = "Percent") +
+  guides(fill = FALSE) +
+  coord_flip() +
+  facet_grid(~bigregion)
+```
+## 5.2 Continuous variables by group or category
+New dataset: 'socviz::organdata'
+```{r}
+glimpse(socviz::organdata)
+```
+Plot 'year' by 'donors':
+```{r, fig.width=12}
+ggplot(organdata, aes(year, donors)) +
+  geom_line(aes(group = country)) +
+  facet_wrap(~country)
+```
+Looking at country variation without looking at the yearly trend using geom_boxplot():
+```{r, fig.width=12}
+ggplot(organdata, aes(country, donors)) +
+  geom_boxplot() +
+  coord_flip()
+```
+Reorder donations from high to low using reorder() function.  reorder() takes two arguments: the varible to be reordered and the variable to base the reordering on:
+```{r}
+ggplot(organdata, aes(x = reorder(country, donors, na.rm = TRUE), y = donors)) +
+  geom_boxplot() +
+  labs(x = NULL) +
+  coord_flip()
+```
+geom_boxplot can accept a fill variable:
+```{r}
+ggplot(organdata, aes(x = reorder(country, donors, na.rm = TRUE), y = donors, fill = world)) +
+  geom_boxplot() +
+  labs(x = NULL) +
+  coord_flip() +
+  theme(legend.position = "top")
+```
+With the number of observations in each country small, we can geom_point() (or geom_jitter() for overlapped points) instead of using geom_boxplot():
+```{r}
+ggplot(organdata, aes(x = reorder(country, donors, na.rm = TRUE), y = donors, color = world)) +
+  geom_jitter(position = position_jitter(width = 0.15)) +
+  labs(x = NULL) +
+  coord_flip() +
+  theme(legend.position = "top")
+```
+Grouping organdata by consent_law and country variables and summarizing with a number of statistics (using dplyr):
+```{r}
+(by_country <- organdata %>% 
+  group_by(consent_law, country) %>% 
+  summarize(
+    donors_mean = mean(donors, na.rm = TRUE),
+    donors_sd = sd(donors, na.rm = TRUE),
+    gdp_mean = mean(gdp, na.rm = TRUE),
+    health_mean = mean(health, na.rm = TRUE),
+    roads_mean = mean(roads, na.rm = TRUE),
+    cerebvas_mean = mean(cerebvas, na.rm = TRUE)
+      
+  )
+)
+```
+An alternative where we summarize all the numeric variables:
+```{r}
+(by_country <- organdata %>% 
+  group_by(consent_law, country) %>% 
+  summarize_if(is.numeric, list(mean = mean, sd = sd), na.rm = TRUE) %>% 
+  ungroup() # so that the result is a plain table
+)
+```
+Plot donors_mean by country with Donor and color of consent_law:
+```{r}
+ggplot(by_country, aes(donors_mean, y = reorder(country, donors_mean), color = consent_law)) +
+  geom_point(size = 3) +
+  labs(
+    x = "Donor Procurement Rate",
+    y = "",
+    color = "Consent Law"
+  ) +
+  theme(legend.position = "top")
+```
+Cleveland dotplots are generally preferred to bar or column charts.  
+Faceting by consent_law to remove the legend and color and scales = 'free_y':
+```{r, fig.height=8, fig.width=9}
+ggplot(by_country, aes(donors_mean, y = reorder(country, donors_mean))) +
+  geom_point(size = 3) +
+  facet_wrap(~ consent_law, scales = "free_y", ncol = 1) +
+   labs(
+    x = "Donor Procurement Rate",
+    y = ""
+  )
+```
+Use geom_pointrange to plot sd around the mean:
+```{r}
+ggplot(by_country, aes(x = reorder(country, donors_mean), y = donors_mean)) +
+  geom_pointrange(aes(ymin = donors_mean - donors_sd, ymax = donors_mean + donors_sd)) +
+  labs(x = "", y = "Donor Procuremen Rate") +
+  coord_flip()
+```
+## 5.3 Plot text directly
+Using geom_text().
+```{r}
+ggplot(by_country, aes(roads_mean, donors_mean)) +
+  geom_point() +
+  geom_text(aes(label = country))
+```
+Adjust text position (hjust = 0 is left justify; hjust = 1 is right justify):
+```{r}
+ggplot(by_country, aes(roads_mean, donors_mean)) +
+  geom_point() +
+  geom_text(aes(label = country), hjust = 0)
+```
+Use package ggrepel for more flexible text labelling. Using a new dataset -- socviz::elections_historic:
+```{r}
+socviz::elections_historic %>% select(2:7)
+```
+```{r, fig.width=10, fig.height=10}
+p.title <- "Presidential Elections: Popular and Electoral College Margins"
+p.subtitle <- "1824 - 2016"
+p.caption <- "Data for 2016 are provisional"
+x_label <- "Winner's Share of Popular Vote"
+y_label <- "Winner's Share of Electoral College Vote"
+ggplot(elections_historic, aes(popular_pct, ec_pct, label = winner_label)) +
+  geom_hline(yintercept = 0.5, size = 1.4, color = "gray80") +
+  geom_vline(xintercept = 0.5, size = 1.4, color = "gray80") +
+  geom_text_repel() +
+  scale_x_continuous(labels = scales::percent) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(x = x_label, y = y_label, title = p.title, subtitle = p.subtitle, caption = p.caption)
+```
+## 5.4 Label outliers
+Selecting points of interest.
+```{r}
+ggplot(by_country, aes(gdp_mean, health_mean)) +
+  geom_point() +
+  geom_text_repel(data = subset(by_country, gdp_mean > 25000 | health_mean < 1500 | country %in% "Belgium"), aes(label = country))
+```
+Creating a dummy variable:
+```{r}
+organdata$ind <- organdata$ccode %in% c("Ita", "Spa") & organdata$year > 1998
+ggplot(organdata, aes(x = roads, y = donors, color = ind)) +
+  geom_point() +
+  geom_text_repel(data = subset(organdata, ind), aes(label = ccode)) +
+  guides(label = FALSE, color = FALSE)
+
+```
+## 5.5 Write and draw in the plot area
+Using annotate() function.
+```{r}
+ggplot(organdata, aes(roads, donors)) +
+  geom_point() +
+  annotate(geom = "text", x = 91, y = 33, label = "A surprisingly high \n recovery rate", hjust = 0)
+```
+## 5.6 Understanding scales, guides, themes
+Set the aestheic to 'shape'
+```{r, fig.width=8,fig.height=8}
+ggplot(organdata, aes(roads, donors, shape = world)) +
+  geom_point(size = 3)
+```
+Controlling the tick marks:
+```{r, fig.width=8,fig.height=8}
+ggplot(organdata, aes(roads, donors, shape = world)) +
+  geom_point(size = 3) +
+  scale_x_log10() +
+  scale_y_continuous(breaks = c(5, 15, 25), labels = c("Five", "Fifteen", "Twenty-Five"))
+```
+
+
+
+
+

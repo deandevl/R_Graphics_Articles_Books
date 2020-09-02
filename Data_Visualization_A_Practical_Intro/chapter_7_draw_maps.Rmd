@@ -1,0 +1,97 @@
+---
+title: "Chapter 7 Draw Maps"
+output: 
+  html_notebook:
+    toc: yes
+---
+
+```{r}
+library(dplyr)
+library(tibble)
+library(ggplot2)
+library(scales)
+library(socviz)
+library(maps)
+library(ggthemes)
+```
+
+## 7.1 Map U.S. state-level data
+```{r}
+?socviz::election
+glimpse(socviz::election)
+```
+Plot 'r_points' vs 'state' by 'census' (faceted):
+```{r, fig.width=8, fig.height=12}
+?ggplot2::facet_wrap
+party_colors <- c("#2E74C0", "#CB454A")
+socviz::election %>% 
+  filter(!election$st %in% c("DC")) %>% 
+  ggplot(aes(r_points, reorder(state, r_points), color = party)) +
+  geom_vline(xintercept = 0, color = "gray30") +
+  geom_point(size = 2) +
+  scale_color_manual(values = party_colors) +
+  scale_x_continuous(
+    breaks = c(-30, -20, -10, 0, 10, 20, 30, 40),
+    labels = c("30\n(Clinton)", "20", "10", "0", "10", "20", "30", "40\n(Trump)")
+  ) +
+  facet_wrap(~ census, ncol = 1, scales = "free_y") +
+  guides(color = FALSE) +
+  labs(x = "Point Margin", y = NULL) +
+  theme(axis.text = element_text(size = 8))
+```
+Set up a dataframe with drawing info for states:
+```{r}
+us_states <- map_data("state")
+glimpse(us_states) 
+```
+Plot the states:
+```{r}
+ggplot(us_states, aes(long, lat, group = group)) +
+  geom_polygon(fill = "white", color = "black")
+```
+Color the states by setting 'fill' to 'region':
+```{r}
+ggplot(us_states, aes(long, lat, group = group, fill = region)) +
+  geom_polygon(color = "gray90", size = 0.1) +
+  guides(fill = FALSE)
+```
+Using the Albers projection for a more accurate US map:
+```{r}
+ggplot(us_states, aes(long, lat, group = group, fill = region)) +
+  geom_polygon(color = "gray90", size = 0.1) +
+  coord_map(projection = "albers", lat0 = 39, lat1 = 45) +
+  guides(fill = FALSE)
+```
+left-join the election data with the map data:
+```{r}
+election$region <- tolower(election$state)
+us_states_elec <- left_join(us_states, election)
+glimpse(us_states_elec)
+```
+With the election data merged with map data, plot the states with fill = 'party':
+```{r}
+ggplot(us_states_elec, aes(x = long, y = lat, group = group, fill = party)) +
+  geom_polygon(color = "gray90", size = 0.1) +
+  coord_map(projection = "albers", lat0 = 39, lat1 = 45) +
+  guides(fill = FALSE)
+```
+Remove the grids, use party colors, add a legend:
+```{r}
+party_colors <- c("#2E74C0", "#CB454A")
+ggplot(us_states_elec, aes(x = long, y = lat, group = group, fill = party)) +
+  geom_polygon(color = "gray90", size = 0.1) +
+  coord_map(projection = "albers", lat0 = 39, lat1 = 45) +
+  scale_fill_manual(values = party_colors) +
+  labs(title = "Election Results 2016", fill = NULL) +
+  ggthemes::theme_map()
+```
+Plot a continuous variable -- fill = 'pct_trump':
+```{r}
+ggplot(us_states_elec, aes(x = long, y = lat, group = group, fill = pct_trump)) +
+  geom_polygon(color = "gray90", size = 0.1) +
+  coord_map(projection = "albers", lat0 = 39, lat1 = 45) +
+  scale_fill_gradient(low = "white", high = "#CB454A") +
+  labs(title = "Trump vote", fill = "Percent") +
+  ggthemes::theme_map()
+```
+

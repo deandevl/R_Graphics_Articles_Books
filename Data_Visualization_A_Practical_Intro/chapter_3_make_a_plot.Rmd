@@ -1,0 +1,120 @@
+---
+title: "Chapter 3 Make a Plot"
+output: 
+  html_notebook:
+    toc: yes
+---
+
+```{r}
+# knitr::opts_chunk$set(fig.width = 12, fig.height = 9)
+```
+
+
+
+```{r}
+library(dplyr)
+library(socviz)
+library(gapminder)
+library(tibble)
+library(readr)
+library(ggplot2)
+library(scales)
+```
+
+## 3.1 How Ggplot Works
+## 3.2 Tidy Data
+On page 57 there is a good comparison of a 'wide' table and that table converted into a 'long' table.
+The 'wide' table where some variables are spread across the columns of the table (e.g years across the columns)
+## 3.3 Mappings link data to things you see
+The mapping argument of ggplot (ggplot(aes( )...)) aes() is a function. aes() links variables to things.
+## 3.4 Build your plots layer by layer
+Adding a point layer and a smooth layer (note using mgcv::gam which is the default for geom_smooth()):
+```{r}
+?mgcv::`mgcv-package`
+ggplot(gapminder, aes(gdpPercap, lifeExp)) +
+  geom_point() +
+  geom_smooth(method = mgcv::gam)
+```
+
+'gam' means that it has fit a generalized additive model. geom_smooth is a function with other arguments. Try
+setting its method argument to 'lm' for linear model (note: 'lm' is a function as well):
+```{r}
+?geom_smooth
+?lm
+ggplot(gapminder, aes(gdpPercap, lifeExp)) +
+  geom_point() +
+  geom_smooth(method = lm)
+```
+Data bunched up on left side. x scale would look better if we used a log scale and the mgcv::gam smoothing method.
+Note the points are repositioned to a more linear trend shape because of the rescaling.
+```{r}
+ggplot(gapminder, aes(gdpPercap, lifeExp)) +
+  geom_point() +
+  geom_smooth(method = mgcv::gam) +
+  scale_x_log10()
+```
+Decorating the plot: put dollar signs on x axis using 'scales' package. The 'labels' argument modifies the axis text.
+```{r}
+ggplot(gapminder, aes(gdpPercap, lifeExp)) +
+  geom_point() +
+  geom_smooth(method = mgcv::gam) +
+  scale_x_log10(labels = scales::dollar)
+```
+## 3.5 Mapping aesthetics vs setting them
+The aes property 'color' will represent the variable 'continent':
+```{r}
+ggplot(gapminder, aes(gdpPercap, lifeExp, color = continent)) +
+  geom_point()
+```
+aes is for linking a variable to 'color', 'size', etc.  To actually change point colors, define it in a geom_.
+See the below help for list of aesthetics that geom_point understands
+```{r}
+?geom_point
+```
+Additional decorations with 'alpha' and 'labs()':
+```{r}
+ggplot(gapminder, aes(gdpPercap, lifeExp)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = mgcv::gam) +
+  scale_x_log10(labels = scales::dollar) +
+  labs(
+    x = "GDP Per Capita",
+    y = "Life Expectency in Years",
+    title = "Economic Growth and Life Expectancy",
+    subtitle = "Data points are country-years",
+    caption = "Source: Gapminder."
+  )
+```
+All geom's inherit from the original aes settings (note: using 'fill' for the error bars):
+```{r}
+ggplot(gapminder, aes(gdpPercap, lifeExp, color = continent, fill = continent)) +
+  geom_point() +
+  geom_smooth(method = stats::loess) +
+  scale_x_log10()
+```
+
+## 3.6 Aesthetics can be mapped per geom_
+By default geom_'s inherit their mappings from the ggplot() function.  We can change this by specifying different aethetics for each geom_.  We use same aes() expression in the ggplot() call but now use it in the geom_ function as well, specifying the aes() we want for each one. 
+Example--set the aes() of geom_point to 'aes(color = log(pop)):
+Note the use of 'theme() function for controlling the legend position.
+```{r, fig.width = 12, fig.height = 9}
+?ggplot2::theme
+ggplot(gapminder, aes(gdpPercap, lifeExp)) +
+  geom_point(aes(color = log(pop))) +
+  scale_x_log10() + 
+  theme(legend.position = "top")
+```
+## 3.7 Save your work
+Changing the size of plots in .Rmd documents: Set the following option in the first code chunck:
+'knitr::opts_chunk$set(fig.width gdpPercap, lifeExp= 8, fig.height = 5)' or individual chunck as above.
+To save the most recently displayed figure (available: *.png, *.pdf, *.jpg, *.svg):
+```{r}
+ggsave(filename = "figures/gdpPercap_lifeExp_log.jpg", height = 4, width = 6, units = "in")
+ggsave(filename = "figures/gdpPercap_lifeExp_log.svg")
+```
+## 3.8 Where to go next
+
+
+
+
+

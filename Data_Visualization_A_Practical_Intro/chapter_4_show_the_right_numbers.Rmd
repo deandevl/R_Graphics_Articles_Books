@@ -1,0 +1,125 @@
+---
+title: "Chapter 4 Show the Right Numbers"
+output: 
+  html_notebook:
+    toc: yes
+---
+
+
+
+```{r}
+library(dplyr)
+library(magrittr)
+library(socviz)
+library(gapminder)
+library(tibble)
+library(readr)
+library(ggplot2)
+library(scales)
+```
+## 4.2 Grouped data and the "Group" aesthetic
+Plot the gapminder data grouped by country across the years with a line chart:
+```{r}
+ggplot(gapminder, aes(year, gdpPercap)) +
+  geom_line(aes(group = country))
+```
+## 4.3 Facet to make small multiples
+```{r}
+ggplot(gapminder, aes(year, gdpPercap)) +
+  geom_line(aes(group = country)) +
+  facet_wrap(~continent)
+```
+Enhanced facet:
+```{r, fig.width=12}
+ggplot(gapminder, aes(year, gdpPercap)) +
+  geom_line(color = "gray70", aes(group = country)) +
+  geom_smooth(size = 1.1, method = stats::loess, se = FALSE) +
+  scale_y_log10(labels = scales::dollar) +
+  facet_wrap(~continent, ncol = 5) +
+  labs(
+    x = "Year",
+    title = "GDP per capita on Five Countries" 
+  )
+```
+Using the dataset 'gss_sm'
+```{r}
+glimpse(gss_sm)
+```
+Faceting gss_sm by sex and race
+```{r}
+ggplot(gss_sm, aes(age, childs)) +
+  geom_point(alpha = 0.2) +
+  geom_smooth() +
+  facet_grid(sex ~ race)
+```
+## 4.4 Geoms can transform data
+Specify 'group = 1' when we want to total number of observations to compute a proportion (i.e. ..prop..)
+```{r}
+ggplot(gss_sm, aes(bigregion)) +
+  geom_bar(aes(y = ..prop.., group = 1))
+```
+What is the religious preference?
+```{r}
+table(gss_sm$religion)
+```
+Mapping two aesthetics to the same variable without the ledgend:
+
+```{r}
+ggplot(gss_sm, aes(x = religion, fill = religion)) +
+  geom_bar() +
+  guides(fill = FALSE)
+```
+## 4.5 Frequency plots the slightly awkward way
+The distributions of religions across different regions of US - the 'religion' variable broken down proportionally within 'bigregion' (the default plot is a stacked bar chart):
+```{r}
+ggplot(gss_sm, aes(x = bigregion, fill = religion)) +
+  geom_bar()
+```
+Using 'position' = "dodge" the y axis reverts back to count:
+```{r}
+ggplot(gss_sm, aes(x = bigregion, fill = religion)) +
+  geom_bar(position = "dodge")
+```
+Using '..prop..':
+```{r}
+ggplot(gss_sm, aes(x = bigregion, fill = religion)) +
+  geom_bar(position = "dodge", aes(y = ..prop.., group = religion))
+```
+```{r}
+ggplot(gss_sm, aes(x = religion)) +
+  geom_bar(position = "dodge", aes(y = ..prop.., group = bigregion)) +
+  facet_wrap(~bigregion, ncol = 2)
+```
+Using the 'dplyr' first before plotting will make the above attempts easier.
+
+## 4.6 Histograms and density plots
+A histogram chops a continuous variable into bins. geom_histogram will compute the bins for us.  Looking at a histogram of continuous variable 'area' from dataset 'midwest':
+```{r}
+ggplot(midwest, aes(x = area)) +
+  geom_histogram()
+```
+```{r}
+ggplot(midwest, aes(x = area)) +
+  geom_histogram(bins = 18)
+```
+Calculate a kernal density estimate of the underlying distribution:
+```{r}
+ggplot(midwest, aes(x = area)) +
+  geom_density()
+```
+## 4.7 Avoid transformations when necessary
+You all ready have the proportions or counts data and don't need ggplot to perform statistics. To turn off ggplot doing stats then enter: stat = "identity" in the geom_bar.
+```{r}
+ggplot(titanic, aes(x = fate, y = percent, fill = sex)) +
+  geom_bar(position = "dodge", stat = "identity") +
+  theme(legend.position = "top")
+
+```
+
+
+
+
+
+
+
+

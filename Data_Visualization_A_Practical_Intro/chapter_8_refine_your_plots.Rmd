@@ -1,0 +1,317 @@
+---
+title: "Chapter 8 Refine Your Plots"
+output: 
+  html_notebook:
+    toc: yes
+---
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(tibble)
+library(ggplot2)
+library(scales)
+library(socviz)
+library(ggrepel)
+library(scales)
+library(RColorBrewer)
+library(cowplot)
+```
+The socviz::asasec dataset (membership):
+```{r}
+?socviz::asasec
+glimpse(socviz::asasec)
+```
+## 8.0 Plot Members vs Revenues for year 2014:
+```{r,fig.width = 8, fig.height=6}
+socviz::asasec %>% 
+  filter(Year == 2014) %>% 
+  ggplot(aes(Members, Revenues, label = Sname)) +
+    geom_point(aes(color = Journal)) +
+    geom_smooth(method = "lm", se = FALSE, color = "gray80") +
+    geom_text_repel(data = subset(asasec, Year == 2014 & Revenues > 7000), size = 2) +
+    scale_y_continuous(labels = scales::dollar) +
+    theme(legend.position = "bottom") +
+    labs(
+      x = "Membership",
+      y = "Revenues",
+      color = "Section has own Journal",
+      title = "ASA Sections",
+      subtitle = "2014 Calendar Year",
+      caption = "Source: ASA annual report"
+    )
+```
+## 8.1 Use color to your advantage
+An unordered categorical variable like 'country' or 'sex' requires distinct colors that won't be easily confused with one another.  An ordered categorical variable like 'level of education' on the other hand requires a graded color scheme of some kind running from less to more or earlier to later.
+
+If ordered, is there a neutral midpoint with departures to extremes in each direction?
+
+Take care to choose a palette that reflects the structure of your data.
+
+Use the RColorBrewer package to make a wide range of named color palettes available to you.
+```{r}
+?RColorBrewer
+display.brewer.all(type = "seq")
+```
+```{r}
+display.brewer.all(type = "div")
+```
+```{r}
+display.brewer.all(type = "qual")
+```
+Use 'scale_color_brewer(palette = )' or 'scale_fill_brewer(palette = )' to select a palette depending on color or fill aesthetic.
+"Set2" is ggplot's default palette.
+```{r}
+ggplot(organdata, aes(roads,donors, color = world)) +
+  geom_point(size = 3) +
+  scale_color_brewer(palette = "Set2") +
+  theme(legend.position = "top")
+```
+Specify colors manually via 'scale_color_manual(values = )' or 'scale_fill_manual(values = )' which take a value argument that can be specified as a vector of color names or color values that R knows about.
+```{r}
+demo("colors")
+```
+## 8.2 Layer color and text together
+Plotting using manually specified colors both for emphasis and because of their social meaning.  The data set:
+```{r}
+glimpse(socviz::county_data)
+```
+In plotting, include only counties with a value of "No" for the 'flipped' variable.
+
+```{r}
+party_colors <- c("#2E74C0", "#CB454A")
+plot_data_no <- socviz::county_data %>% 
+  filter(flipped == "No")
+
+plot_1 <- ggplot(plot_data_no, aes(pop, black/100)) +
+    geom_point(alpha = 0.15, color = "gray50") +
+    scale_x_log10(labels = scales::comma)
+plot_1
+```
+Overlay above points with points where 'flipped' is "Yes" and mapping the color aesthetic for those points based on 'partywinner16':
+```{r, fig.width=9, fig.height=8}
+plot_data_yes <- socviz::county_data %>% 
+  filter(flipped == "Yes")
+
+plot_2 <- plot_1 + 
+  geom_point(data = plot_data_yes, mapping = aes(pop, black/100, color = partywinner16)) +
+    scale_color_manual(values = party_colors) +
+  theme(legend.position = "top")
+plot_2
+```
+Set the y axis scale and the labels:
+```{r,fig.width=9, fig.height=8}
+plot_3 <- plot_2 +
+  scale_y_continuous(labels=scales::percent) +
+  labs(
+    x = "County Population (log scale)",
+    y = "Percent Black Population",
+    title = "Flipped Counties, 2016",
+    caption = "Counties in gray did not flip.",
+    color = "County flipped to..."
+  )
+plot_3
+```
+Highlight with labelling counties with relatively high African American residents:
+```{r,fig.width=9, fig.height=8}
+plot_data_highAA <- socviz::county_data %>% 
+  filter(flipped == "Yes" & black > 25)
+
+plot_4 <- plot_3 +
+  geom_text_repel(data = plot_data_highAA, mapping = aes(pop, black/100, label = state), size = 2)
+  
+plot_4 
+```
+## 8.3 Change the appearance of plots with themes
+Using the theme_set() function on the above 'plot_4':
+```{r,fig.width=9, fig.height=8}
+theme_set(theme_bw())
+plot_4
+```
+```{r,fig.width=9, fig.height=8}
+theme_set(theme_dark())
+plot_4
+theme_set(theme_gray())
+```
+## 8.4 Use theme elements in a substantive way
+Using element_text() function to tweak appearance of text elements; use element_blank() to remove others.
+Using dataset socviz::gss_lon:
+```{r}
+glimpse(socviz::gss_lon)
+```
+Calculate the mean age of respondents for each year of interest.  Look at every 4 years.
+```{r}
+years <- c(seq(1972, 1988, 4), 1993, seq(1996, 2016, 4))
+mean_age <- socviz::gss_lon %>% 
+  filter(!is.na(year) & year %in% years) %>% 
+  group_by(year) %>% 
+  summarise(xbar = round(mean(age, na.rm = TRUE), 0))
+mean_age$y <- 0.3
+glimpse(mean_age)
+
+year_labs <- data.frame(x = 85, y = 0.8, year = years)
+```
+Plot the density of age:
+```{r,fig.width=9, fig.height=14}
+plot_data <- socviz::gss_lon %>% 
+  filter(year %in% years)
+
+base_plot <- ggplot(plot_data, mapping = aes(x = age)) +
+  geom_density(fill = "gray20", color = FALSE, alpha = 0.9, mapping = aes(y = ..scaled..)) +
+  geom_vline(data = mean_age, mapping = aes(xintercept = xbar), color = "white", size = 0.5) +
+  geom_text(data = mean_age, mapping = aes(xbar, y, label = xbar), nudge_x = 7.5, color = "white", size = 3.5, hjust = 1) +
+  geom_text(year_labs, mapping = aes(x = x, y = y, label = year)) +
+  facet_grid(year ~ ., switch = "y") 
+base_plot
+```
+Now add theme related elements:
+```{r,fig.width=9, fig.height=14}
+base_plot +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text.x = element_text(size = 12),
+    axis.title.y = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y =element_blank(),
+    strip.background = element_blank(),
+    strip.text.y = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.background = element_blank()
+  ) +
+  labs(
+    x = "Age",
+    y = NULL,
+    title = "Age Distribution of\nGSS Respondents"
+  )
+```
+View components of a theme:
+```{r}
+?ggplot2::theme
+```
+## 8.5 Case studies
+### 8.5.1 Two y-axes, the dataset:
+```{r}
+glimpse(socviz::fredts)
+```
+Gather sp500_i and monbase_i:
+```{r}
+fredts_gather <- socviz::fredts %>% 
+  select(date, sp500_i, monbase_i) %>% 
+  tidyr::gather(key = series, value = score, sp500_i:monbase_i)
+glimpse(fredts_gather)
+```
+Make the 'gather' plot:
+```{r,fig.width=9,fig.height=8}
+plot_gather <- ggplot(fredts_gather, mapping = aes(x = date, y = score, group = series, color = series)) +
+  geom_line() +
+  theme(legend.position = "top") +
+  labs(
+    x = "Date",
+    y = "Index",
+    color = "Series"
+  ) +
+  theme(
+    panel.background = element_blank(),
+    panel.grid.major = element_line(color = "gray80"),
+    panel.grid.minor = element_line(color = "gray80")
+  )
+plot_gather
+```
+Make the difference plot:
+```{r,fig.width=9,fig.height=8}
+plot_diff <- ggplot(fredts, mapping = aes(x = date, y = sp500_i - monbase_i)) +
+  geom_line() +
+  labs(
+    x = "Date",
+    y = "Difference"
+  ) +
+  theme(
+    panel.background = element_blank(),
+    panel.grid.major = element_line(color = "gray80"),
+    panel.grid.minor = element_line(color = "gray80")
+  )
+plot_diff
+```
+The goal is to have one plot where 'plot_gather' takes up 75% of vertical space and 'plot_diff' takes the bottom 25%.  Two packages -- gridExtra and cowplot -- make placing plots in a grid easier.  Let's try cowplot:
+```{r,fig.width=9,fig.height=8}
+cowplot::plot_grid(plot_gather, plot_diff, nrow = 2, rel_heights = c(0.75, 0.25), align = "v")
+```
+### 8.5.2 Redrawing a bad slide
+Revenue and employee numbers at Yahoo.  The dataset:
+```{r}
+glimpse(socviz::yahoo)
+```
+Line plot of employee numbers vs revenue:
+```{r}
+ggplot(socviz::yahoo, aes(Employees, Revenue)) +
+  geom_path(color = "gray10") +
+  geom_text(aes(color = Mayer, label = Year), size = 3, fontface = "bold") +
+  theme(
+    panel.background = element_blank(),
+    panel.grid.major = element_line(color = "gray80"),
+    panel.grid.minor = element_line(color = "gray80"),
+    legend.position = "bottom"
+  ) +
+  labs(
+    x = "Employees",
+    y = "Revenue (Millions)",
+    title = "Yahoo Employees vs Revenue,2004-2014"
+  ) +
+  scale_y_continuous(labels = scales::dollar) +
+  scale_x_continuous(labels = scales::comma)
+```
+Using time on the x axis and taking a ratio of Revenue/Employees:
+```{r}
+ggplot(socviz::yahoo, aes(Year, Revenue/Employees)) +
+  geom_vline(xintercept = 2012) +
+  geom_line(color = "gray80", size = 2) +
+  annotate("text", x = 2013, y = 0.44, label = " Mayer becomes CEO", size = 2.5) +
+  labs(
+    x = "Year\n",
+    y = "Revenue/Employees",
+    title = "Yahoo Revenue to Employee Ratio, 2004-2014" 
+  ) +
+  theme(
+    panel.background = element_blank(),
+    panel.grid.major = element_line(color = "gray80"),
+    panel.grid.minor = element_line(color = "gray80")
+  )
+```
+### 8.5.3 Saying no to pie charts
+The dataset:
+```{r}
+glimpse(socviz::studebt)
+```
+Plot two bar charts of % borrows and % of balances
+```{r}
+p_xlab <- "Amount Owed, in thousands of Dollars"
+p_title <- "Outstanding Student Loans"
+p_subtitle <- "44 million borrowers owe a total of $1.3 trillion"
+p_caption <- "Source: FRB NY"
+f_labs <- c(`Borrowers` = "Percent of\nall Borrowers",
+            `Balances` = "Percent of\nall Balances")
+ggplot(socviz::studebt, aes(Debt, pct/100, fill = type)) +
+  geom_bar(stat = "identity") +
+  scale_fill_brewer(type = "qual", palette = "Dark2") +
+  scale_y_continuous(labels = scales::percent) +
+  guides(fill = FALSE) +
+  theme(
+    strip.text.x = element_text(face = "bold"),
+    strip.background.x = element_rect(fill = "white"), 
+    panel.background = element_blank(),
+    panel.grid.major = element_line(color = "gray80"),
+    panel.grid.minor = element_line(color = "gray80")) +
+  labs(
+    y = NULL, 
+    x = p_xlab,
+    caption = p_caption,
+    title = p_title,
+    subtitle = p_subtitle) +
+  facet_grid(~ type, labeller = as_labeller(f_labs)) +
+  coord_flip()
+```
+
+
+
+
