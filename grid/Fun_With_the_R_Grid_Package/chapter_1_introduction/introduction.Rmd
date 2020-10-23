@@ -1,0 +1,294 @@
+---
+title: "Fun With the R Grid Package"
+author: "Rick Dean"
+date: "09/06/2020"
+output: 
+   html_document:
+    toc: yes
+    toc_depth: 3
+    code_folding: hide
+    css: ../../../style.css
+---
+
+```{r, warning=FALSE, message=FALSE}
+library(knitr)
+library(grid)
+```
+
+```{r,setup, include=FALSE, eval=TRUE}
+options(knitr.table.format = "html")
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, fig.width = 10, fig.height = 10)
+```
+
+The following R scripts and notes are sourced from [Fun With the R Grid Package](http://jse.amstat.org/v18n3/zhou.pdf), an article by Lutong Zhou and W. John Braun
+
+# 1 Introduction
+"We have found that the grid package is an interesting and surprisingly simple way to do a
+lot of things that are either difficult or impossible using the more traditional base graphics."
+
+"The grid package is an R package, developed by Paul Murrell in the 1990s."
+
+"We will describe the very basic ideas of the grid package, introducing viewports, editing graphic objects
+(grobs), and demonstrating how grid can be an alternative to traditional graphics. The
+second purpose of the paper is to demonstrate that, in addition to what is already available
+in the *lattice* package, the grid package offers flexibility which can be exploited in a variety
+of ways to visualize data."
+
+## 1.1 Using Viewports
+<div class="task">Task: Create a viewport centered at (.5,.5), with width .9 and height .9 relative to the graphics window.</div>
+
+```{r}
+main_vp <- grid::viewport(x=0.5,y=0.5,width = 0.9,height = 0.9,name = "main_vp")
+grid::grid.show.viewport(v = main_vp)
+```
+A viewport name can be any string, but *grid* uses the reserved name "ROOT" for the top-level viewport.
+
+<div class="task">Task: Create a new page, tell R to use the viewport by calling `grid::pushViewport()`, add rect and circle. </div>
+```{r}
+grid::grid.newpage(recording = FALSE)
+grid::pushViewport(main_vp)
+grid::grid.rect(gp=gpar(lty="dashed",col="red"))
+grid::grid.circle(x=0.6,y=0.4,r=0.3)
+```
+By default, the coordinates of the lower left corner of the viewport are (0,0), and the upper
+right corner has coordinates (1,1).
+
+<div class="task">Task: Create a second(smaller) viewport "small_vp" to be placed within the "main_vp" viewport. </div>
+
+```{r}
+small_vp <- viewport(x=0.5,y=0.75,width = 0.6,height = 0.3,name = "small_vp")
+```
+
+<div class="task">Task: Create a new page with "main_vp", "small_vp" and place a circle and retangle in the "small_vp".</div>
+
+```{r}
+grid::grid.newpage(recording = FALSE)
+grid::pushViewport(main_vp)
+grid::grid.rect(gp=gpar(lty="dashed",col="red"))
+grid::pushViewport(small_vp)
+grid::grid.rect(gp=gpar(lty="dashed",col="blue"))
+grid::grid.circle(gp=gpar(col="purple"))
+```
+The specifications of "small_vp" `(x=0.5,y=0.75,width = 0.6,height = 0.3)` are relative to the viewport that it has been pushed into (i.e. "main_vp").
+
+We can change our focus from one viewport to another and back, using the *pushViewport()* and *upViewport()* functions. The commands *downViewport()* and *popViewport()* also change our focus.  After pushing "small_vp" it is now the current viewport inside "main_vp". Also, when specifying a viewport name in *downviewport()* or *seekViewport()*, it is possible to provide a viewport path, which consists of several names concatenated using the separator(currently ::).
+
+<div class="task">Task: Change viewport focus from "small_vp" to "main_vp" and add a circle.</div>  
+```{r}
+grid::grid.newpage(recording = FALSE)
+grid::pushViewport(main_vp)
+grid::grid.rect(gp=gpar(lty="dashed",col="red"))
+grid::pushViewport(small_vp)
+grid::grid.rect(gp=gpar(lty="dashed",col="blue"))
+grid::grid.circle(gp=gpar(col="purple"))
+
+grid::upViewport(n=1)
+
+# add circle centered at (.5,.5) and radius of 1
+grid::grid.circle(gp=gpar(col="purple", alpha = 0.5))
+```
+`grid::upViewport(n=1)`moves up 1 generation.
+
+<div class="task">Task: Nest 30 viewports and place a "stickperson" within the 5th, 20th, and 30th viewports.</div>  
+1. Define the "stickperson" function:
+```{r}
+stickperson <- function(){
+  grid.circle(x=.5, y=.8, r=.1, gp=gpar(fill="yellow"))
+  grid.lines(c(.5,.5), c(.7,.2)) # vertical line for body
+  grid.lines(c(.5,.7), c(.6,.7)) # right arm
+  grid.lines(c(.5,.3), c(.6,.7)) # left arm
+  grid.lines(c(.5,.65), c(.2,0)) # right leg
+  grid.lines(c(.5,.35), c(.2,0)) # left leg
+}
+```
+2. Create a new page with 30 nested viewports and "stickperson"'s:
+```{r}
+grid::grid.newpage(recording = FALSE)
+pushViewport(viewport())
+grid::grid.lines(c(0.05,0.95), c(0.95,0.05))
+grid::grid.lines(c(0.05,0.95), c(0.05,0.95))
+for(i in 1:30){
+  vp <- viewport(height = 0.9, width = 0.9)
+  pushViewport(vp)
+  grid.rect(gp=gpar(alpha = 0.1))
+  # stickperson 1:
+  if(i == 5){
+    pushViewport(viewport(x = 0.8))
+    stickperson()
+    upViewport()
+  }
+  # stickperson 2:
+  if(i == 20){
+    pushViewport(viewport(x = 0.2))
+    stickperson()
+    upViewport()
+  }
+  # stickperson 3:
+  if(i == 30){
+    stickperson()
+  }
+}
+```
+
+## 1.2 Using Viewports to Display Data
+The data set:
+```{r}
+escape_prop <- c(0.24, 0.28, 0.28, 0.33, 0.33, 0.32, 0.30, 0.21, 0.30, 0.28, 
+                 0.17, 0.27, 0.21, 0.18, 0.22, 0.21, 0.19, 0.17, 0.17, 0.15,
+                 0.25, 0.19, 0.19, 0.22, 0.21, 0.18, 0.24, 0.23, 0.27, 0.16,
+                 0.17, 0.22, 0.17, 0.25, 0.19, 0.25, 0.12, 0.17, 0.22, 0.22)
+nfires <- c(953, 620, 584, 839, 1415, 1180, 656, 408, 872, 965, 
+            853, 1492, 951, 772, 1541, 1114, 479, 860, 1166, 1208, 
+            657, 1140,1223, 1275, 489, 932, 1096, 1378, 1033, 889, 
+            1046, 818, 1213,782, 962, 1666, 2017, 1689, 1885, 1435)
+nfires_scaled <- nfires/max(nfires)
+index <- (1:40)/41
+```
+<div class="task">Task: Plot the fire data using *grid*.</div>  
+```{r}
+grid::grid.newpage()
+grid::pushViewport(viewport(width = .9, height = .9))
+grid::pushViewport(viewport(y=0.75, width = .9, height = .9))
+for(i in 1:40){
+  vp <- viewport(x=index[i], y = escape_prop[i], height = 0.03, width = 0.03)
+  grid::pushViewport(vp)
+  grid::grid.circle(r = sqrt(nfires_scaled[i]/pi))
+  grid::upViewport()
+}
+grid::grid.xaxis(at = c(0, index[c(10,20,30,40)]), label = seq(1960,2000,10))
+grid::grid.yaxis(at=seq(0,0.5,0.1))
+grid::grid.text("Proportion of Escaped Fires", y = 0.6)
+```
+
+## 1.3 Graphics Objects and Editing
+An important feature of grid graphics is the graphical object (also called a *grob*). There are two ways to interact with a grob:
+  1. Drawing it immediately -- `grid::grid.rect()` creates a grob and draws it
+  2. Create it but don't draw -- `grid::rectGrob()` creates a grob but does not draw it; to draw it use `grid::grid.draw()`
+  
+Modify a grob by using `grid::grid.edit()` and `grid::editGrob()`
+
+<div class="task">Task: Create and edit some rectangle grobs.</div>  
+  1. Create but don't draw a rectangle and name it "gr_rect_1"
+```{r}
+gr_rect_1 <- grid::rectGrob(width = 0.1, height = 0.1, name = "gr_rect_1") #note: x = 0.5, y = 0.5 by default
+```
+
+  2. Using `grid::editGrob()` copy "gr_rect_1" centered at (0.2, 0.6) and draw it
+```{r}
+grid::grid.newpage()
+gr_copy_1 <- grid::editGrob(grob = gr_rect_1, vp = viewport(x = 0.2, y = 0.6), name = "gr_copy_1")
+grid::grid.draw(gr_copy_1)
+```
+  3. Create and draw a second copy centered at (0.7, 0.75:
+```{r}
+grid::grid.newpage()
+gr_copy_2 <- grid::editGrob(grob = gr_rect_1, vp = viewport(x = 0.7, y = 0.75), name = "gr_copy_2")
+grid::grid.draw(gr_copy_1)
+grid::grid.draw(gr_copy_2)
+```
+ 3. Create and draw a third copy centered at (0.5, 0.4: 
+```{r}
+grid::grid.newpage()
+gr_copy_3 <- grid::editGrob(grob = gr_rect_1, vp = viewport(x = 0.5, y = 0.4), name = "gr_copy_3")
+grid::grid.draw(gr_copy_1)
+grid::grid.draw(gr_copy_2)
+grid::grid.draw(gr_copy_3)
+```
+<div class="task">Task: Use `grid::grid.edit()` to rotate the rectangles via using `grid::viewport()`.</div>  
+```{r}
+grid::grid.newpage()
+gr_copy_1 <- grid::editGrob(grob = gr_copy_1, vp = viewport(x = 0.2, y = 0.6, angle = 30))
+gr_copy_2 <- grid::editGrob(grob = gr_copy_2, vp = viewport(x = 0.7, y = 0.75, angle = 63))
+gr_copy_3 <- grid::editGrob(grob = gr_copy_3, vp = viewport(x = 0.5, y = 0.4, angle = 72))
+grid::grid.draw(gr_copy_1)
+grid::grid.draw(gr_copy_2)
+grid::grid.draw(gr_copy_3)
+```
+
+<div class="task">Task: Create a function `draw_star()` for drawing a single star.</div>
+```{r}
+draw_star <- function(x = 0.5, y = 0.5, width = 0.25, height = 0.25, angle = 0, name = "a_star", fill = "purple"){
+  grid::pushViewport(vp = viewport(x = x, y = y, width = width, height = height, angle = angle, name = name))
+  b2 <- sqrt(1/cos(36 * pi/180)^2-1)/2
+  b3 <- sin(72*pi/180)/(2*(1+cos(72*pi/180))) - (1-sin(72*pi/180))/2
+  a_triangle <- grid::polygonGrob(c(0, 0.5,1), c(b3, b2+b3, b3), 
+                                  gp = gpar(fill = fill, 
+                                  col = 0)
+                                 )
+  for(i in 0:2){
+    grid::pushViewport(vp = viewport(angle = 72 * i, name = paste0("triangle_",i)))
+    grid::grid.draw(a_triangle)
+    grid::upViewport()
+  }
+  grid::upViewport()
+}
+grid.newpage()
+draw_star(name = "star_1", fill = "yellow")
+grid.ls(viewports = TRUE)
+```
+
+<div class="task">Task: Create rotated and scaled stars on a blue background.</div>  
+```{r}
+grid::grid.newpage()
+# create the background viewport
+grid::grid.rect(gp = gpar(fill = "blue"))
+
+#draw star 1
+draw_star(x=0.2, y=0.2, width = 0.25, height = 0.25, angle = 40, fill = "yellow", name = "star_1")
+
+#draw star 2
+draw_star(x=0.8, y=0.8, width = 0.3, height = 0.3, angle = 90, fill = "red", name = "star_2")
+
+#draw star 3
+draw_star(x=0.7, y=0.3, width = 0.2, height = 0.2, angle = 130, fill = "green", name = "star_3")
+
+#draw star 4
+draw_star(x=0.3, y=0.7, width = 0.15, height = 0.15, angle = 210, fill = "purple", name = "star_4")
+```
+
+## 1.4 gTree and gList
+The function `grid::gList()` allows us to create a grob that contains a list of grobs.
+<div class="task">Task: Redefine the above function `draw_star()` to `create_star()` that returns a single grob containing a list of triangle grobs.</div>
+
+```{r}
+create_star <- function(x = 0.5, y = 0.5, width = 0.25, height = 0.25, angle = 0, name = "a_star", fill = "purple") {
+  b2 <- sqrt(1/cos(36 * pi/180)^2-1)/2
+  b3 <- sin(72*pi/180)/(2*(1+cos(72*pi/180))) - (1-sin(72*pi/180))/2
+ 
+  starGrobs <- grid::gList(
+    grid::polygonGrob(
+      x = c(0, 0.5,1), 
+      y = c(b3, b2+b3, b3), 
+      gp = grid::gpar(fill = fill, col = 0),
+      vp = grid::viewport(angle = 0, name = paste0("triangle_",0))
+    ),
+    grid::polygonGrob(
+      x = c(0, 0.5,1), 
+      y = c(b3, b2+b3, b3), 
+      gp = grid::gpar(fill = fill, col = 0),
+      vp = grid::viewport(angle = 72, name = paste0("triangle_",1))
+    ),
+    grid::polygonGrob(
+      x = c(0, 0.5,1), 
+      y = c(b3, b2+b3, b3), 
+      gp = grid::gpar(fill = fill, col = 0),
+      vp = grid::viewport(angle = 144, name = paste0("triangle_",2))
+    )
+  )
+  starTree <- grid::gTree(children = starGrobs, name = name, vp = grid::viewport(x = x, y = y, width = width, height = height, angle = angle))
+ 
+  return(starTree)
+}
+
+starTree <- create_star(x = .5, y = .5, width = 0.25, height = 0.25, angle = 30)
+grid::grid.newpage()
+grid::grid.draw(starTree)
+```
+
+## 1.5 Other Scales
+
+*native* - locations and sizes are relative to the x and y scales for the current viewport
+*npc* (the default) - Normalized Parent Coordinates. Treats the bottom left corner of the current viewport as the location of (0,0) and top right as (1,1).
+
+Other scales: cm, inches, mm, points, lines
+
